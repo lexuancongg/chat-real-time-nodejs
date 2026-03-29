@@ -4,9 +4,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
-
 model User {
   id          BigInt   @id @default(autoincrement())
   username    String   @unique
@@ -21,7 +19,8 @@ model User {
 
   devices     Device[]
   messages    Message[]
-  groupMembers GroupMember[]
+
+  conversationMembers ConversationMember[] 
 }
 
 model Friend {
@@ -60,29 +59,7 @@ model ConversationMember {
   @@unique([conversationId, userId])
 }
 
-model Group {
-  id         BigInt   @id @default(autoincrement())
-  name       String?
-  avatarUrl  String?
-  isPrivate  Boolean  @default(false)
-  createdAt  DateTime @default(now())
 
-  members    GroupMember[]
-}
-
-model GroupMember {
-  id       BigInt @id @default(autoincrement())
-  group    Group  @relation(fields: [groupId], references: [id])
-  groupId  BigInt
-
-  user     User   @relation(fields: [userId], references: [id])
-  userId   BigInt
-
-  role     GroupRole @default(MEMBER)
-  joinedAt DateTime  @default(now())
-
-  @@unique([groupId, userId])
-}
 
 model Message {
   id              BigInt   @id @default(autoincrement())
@@ -111,7 +88,7 @@ model Device {
 
   deviceId   String
   deviceName String?
-  pushToken  String?   // thêm để push notification
+  pushToken  String?   
   lastSeen   DateTime?
   isOnline   Boolean  @default(false)
 }

@@ -1,6 +1,7 @@
 import {Request,Response,NextFunction} from 'express'
-import WebSocket, { WebSocketServer } from 'ws'
+const websocket = require('./config/ws/socket.ts')
 import http from 'http';
+import configWebsocket from './config/ws/socket';
 const express = require('express')
 require('dotenv').config();
 const cors = require('cors');  
@@ -34,43 +35,8 @@ app.use((err:Error, req : Request, res:Response, next : NextFunction) => {
 
 
 const server = http.createServer(app)
-const wss = new WebSocketServer({ server });
 
-
-
-const clients = new Map<string, WebSocket>();
-const rooms = new Map<string, Set<string>>(); 
-
-wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
-  const url = new URL(req.url!, 'http://localhost');
-  const userId = url.searchParams.get('userId')!;
-
-
-  clients.set(userId, ws);
-
-  ws.on('message', (data: Buffer) => {
-    console.log('Received:', data.toString());
-
-    ws.send('Server nhận rồi ');
-  });
-
-  ws.on('error', (err: Error) => {
-    console.error(' Error:', err.message);
-  });
-
-  ws.on('close', (code: number, reason: Buffer) => {
-    console.log(' Client disconnected', code, reason.toString());
-  });
-
-  ws.send('Welcome bro 😎');
-});
-
-wss.on('error', (err: Error) => {
-  console.error(' WSS Error:', err.message);
-});
-
-
-
+configWebsocket(server)
 
 
 server.listen(PORT, () => console.log(`lang nghe tren cong${PORT}`));

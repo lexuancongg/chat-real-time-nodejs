@@ -12,7 +12,8 @@ model User {
   username            String               @unique
   password            String
   displayName         String?
-  avatarUrl           String?
+  avatarId            BigInt?              @unique
+  avatar              Image?               @relation("UserAvatar", fields: [avatarId], references: [id])
   status              Status               @default(OFFLINE)
   createdAt           DateTime             @default(now())
   conversationMembers ConversationMember[]
@@ -20,6 +21,14 @@ model User {
   friendOf            Friend[]             @relation("UserFriends_Friend")
   friends             Friend[]             @relation("UserFriends")
   messages            Message[]
+}
+
+model Image {
+  id        BigInt   @id @default(autoincrement())
+  url       String
+  publicId  String?
+  createdAt DateTime @default(now())
+  user      User?    @relation("UserAvatar")
 }
 
 model Friend {

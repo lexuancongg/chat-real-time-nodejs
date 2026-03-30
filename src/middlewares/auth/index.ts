@@ -1,10 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 export interface CustomRequest extends Request {
     cookies: { [key: string]: string };
-    user?: any
+    user?: any;
+    session: any;
 }
 const jwt = require('jsonwebtoken')
-const auth = (req: CustomRequest, res: Response, next: NextFunction) => {
+
+
+const auth_jwt = (req: CustomRequest, res: Response, next: NextFunction) => {
     const token = req.cookies.token;
     if (!token)
         return res.status(401).json({ message: 'you need login' });
@@ -19,4 +22,14 @@ const auth = (req: CustomRequest, res: Response, next: NextFunction) => {
 
 }
 
-export default auth;
+
+const auth_sesion = (req:CustomRequest, res:Response , next:NextFunction)=>{
+    if(req.session && req.session.user){
+        req.user = req.session.user;
+        next();
+    }else{
+        res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+}
+
+export {auth_jwt}

@@ -1,8 +1,10 @@
 import { Application } from "express";
-const authRouter = require('./auth')
+import authRouter from "./auth"; 
 
 const route  = (app : Application) : void =>{
     app.use("/auth",authRouter)
     
     
 }
+
+export default route

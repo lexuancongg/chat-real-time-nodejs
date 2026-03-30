@@ -1,29 +1,31 @@
-import {Request,Response,NextFunction} from 'express'
-const websocket = require('./config/ws/socket.ts')
-import http from 'http';
-import configWebsocket from './config/ws/socket';
-const express = require('express')
-require('dotenv').config();
-const cors = require('cors');  
-var cookieParser = require('cookie-parser')
-const passport = require('passport');    // authencation
-const route = require('./routes/index');
-const app = express();
+import express, { Request, Response, NextFunction } from "express";
+import http from "http";
+import dotenv from "dotenv";
+dotenv.config();
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import passport from "passport";
 
+import configWebsocket from "./config/ws/socket";
+import route from "./routes/index";
+import prisma from "../prisma/client";
+
+const app = express();
 
 app.use(express.json());    // đọc và gởi dữ liệu dạng json
 app.use(passport.initialize());
 app.use(express.urlencoded({ extended: true })); // xử lý dữ liệu từ client gởi lên từ form khi submit mặc định
 
 app.use(cors({
-    origin: "*",
-    methods: 'GET, POST, PUT, DELETE, OPTIONS,PATCH',
-    allowedHeaders: "Accept,authorization,Authorization, Content-Type"
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true 
 }));
 
 app.use(cookieParser())
 // app.use(morgan('combined'));     // log lại những yêu cầu request
-const PORT = 3000;
+const PORT = 8000;
 route(app);
 
 
@@ -37,8 +39,13 @@ app.use((err:Error, req : Request, res:Response, next : NextFunction) => {
 const server = http.createServer(app)
 
 configWebsocket(server)
+console.log("DB URL:", process.env.DATABASE_URL);
+
+await prisma.$connect();
+console.log("Connected DB");
 
 
 server.listen(PORT, () => console.log(`lang nghe tren cong${PORT}`));
-module.exports = app;
+
+export default app;
 

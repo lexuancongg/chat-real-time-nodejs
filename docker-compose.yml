@@ -1,16 +1,40 @@
+#version: "3.9"
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: mysql-container
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+  postgres:
+    image: debezium/postgres:16-alpine
     ports:
-      - "${MYSQL_PORT}:3306"
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
     volumes:
-      - mysql-data:/var/lib/mysql
+      - ./docker/postgres/postgres_init.sql:/docker-entrypoint-initdb.d/postgres_init.sql
+      - postgres:/var/lib/postgresql/data
+    #    command: postgres -c 'max_connections=500'
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB=chat
+    networks:
+      - lexuancong-network
+
+  pgadmin:
+    image: dpage/pgadmin4:2024-10-19-2
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: xuancong@admin.com
+      PGADMIN_DEFAULT_PASSWORD: xuancong
+    networks:
+      - lexuancong-network
+
+networks:
+  #  các service có cùng mạng thì cos thể kết nối với nhau
+  lexuancong-network:
+    driver: bridge
+    name: lexuancong-network
 
 volumes:
-  mysql-data:
+  postgres:
+  pgadmin:
+  redis:
+  kafka_data:

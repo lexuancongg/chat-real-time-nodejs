@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                  BigInt               @id @default(autoincrement())
+  username            String               @unique
+  password            String
+  displayName         String?
+  avatarUrl           String?
+  status              Status               @default(OFFLINE)
+  createdAt           DateTime             @default(now())
+  conversationMembers ConversationMember[]
+  devices             Device[]
+  friendOf            Friend[]             @relation("UserFriends_Friend")
+  friends             Friend[]             @relation("UserFriends")
+  messages            Message[]
+}
+
+model Friend {
+  id        BigInt       @id @default(autoincrement())
+  userId    BigInt
+  friendId  BigInt
+  status    FriendStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  friend    User         @relation("UserFriends_Friend", fields: [friendId], references: [id])
+  user      User         @relation("UserFriends", fields: [userId], references: [id])
+
+  @@unique([userId, friendId])
+}
+
+model Conversation {
+  id            BigInt               @id @default(autoincrement())
+  isGroup       Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  lastMessageId BigInt?
+  members       ConversationMember[]
+  messages      Message[]
+}
+
+model ConversationMember {
+  id             BigInt       @id @default(autoincrement())
+  conversationId BigInt
+  userId         BigInt
+  joinedAt       DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             BigInt        @id @default(autoincrement())
+  conversationId BigInt
+  senderId       BigInt
+  content        String
+  type           MessageType   @default(TEXT)
+  status         MessageStatus @default(SENT)
+  createdAt      DateTime      @default(now())
+  conversation   Conversation  @relation(fields: [conversationId], references: [id])
+  sender         User          @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model Device {
+  id         BigInt    @id @default(autoincrement())
+  userId     BigInt
+  deviceId   String
+  deviceName String?
+  pushToken  String?
+  lastSeen   DateTime?
+  isOnline   Boolean   @default(false)
+  user       User      @relation(fields: [userId], references: [id])
+}
+
+enum Status {
+  ONLINE
+  OFFLINE
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum GroupRole {
+  MEMBER
+  ADMIN
+  OWNER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  VIDEO
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  SEEN
+}

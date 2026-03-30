@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import prisma from "../prisma/client";
 import { hash } from "bcrypt";
+import prisma from "../../prisma/client";
 
 interface RegisterDto {
   username: string;

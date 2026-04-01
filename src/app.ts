@@ -10,25 +10,16 @@ import configWebsocket from "./config/ws/socket";
 import route from "./routes/index";
 import prisma from "../prisma/client";
 import session from "express-session";
+import { sessionMiddleware } from "./middlewares/session";
 
 const app = express();
 
-app.use(express.json());    // đọc và gởi dữ liệu dạng json
+app.use(express.json());    
 app.use(passport.initialize());
-app.use(express.urlencoded({ extended: true })); // xử lý dữ liệu từ client gởi lên từ form khi submit mặc định
+app.use(express.urlencoded({ extended: true })); 
 
 
-app.use(session({
-  secret: "ABCDIIKWUEJBUENLKUIESFJJBSNCJSJSJB",     
-  resave: false,                 
-  saveUninitialized: false,      
-  cookie: { 
-    maxAge: 30*60*1000,          
-    httpOnly: true,
-    secure: false               
-  },
-  rolling: true                  
-}));
+app.use(sessionMiddleware);
 app.use(cors({
     origin: "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -52,10 +43,7 @@ app.use((err:Error, req : Request, res:Response, next : NextFunction) => {
 const server = http.createServer(app)
 
 configWebsocket(server)
-console.log("DB URL:", process.env.DATABASE_URL);
 
-await prisma.$connect();
-console.log("Connected DB");
 
 
 server.listen(PORT, () => console.log(`lang nghe tren cong${PORT}`));

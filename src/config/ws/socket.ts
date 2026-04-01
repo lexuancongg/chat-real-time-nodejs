@@ -52,30 +52,43 @@ const configWebsocket = (server: http.Server) => {
 
     ws.on('message', async (raw: WebSocket.RawData) => {
       try {
-        const message = JSON.parse(raw.toString());
+    const message = JSON.parse(raw.toString());
 
-        if (message.type === "NEW_MESSAGE") {
-          const data = message.data;
-          const conversationId = Number(data.conversationId);
+    switch(message.type) {
+      case "NEW_MESSAGE": {
+        const data = message.data;
+        const conversationId = Number(data.conversationId);
+        const userIds = rooms.get(conversationId);
+        if (!userIds) return;
 
-          const userIds = rooms.get(conversationId);
-
-          if (!userIds) return;
-
-          userIds.forEach((uid) => {
-            const client = clients.get(uid);
-
-            if (client && client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({
-                type: "NEW_MESSAGE",
-                data,
-              }));
-            }
-          });
-        }
-      } catch (err) {
-        console.error("Invalid message:", err);
+        userIds.forEach((uid) => {
+          const client = clients.get(uid);
+          if (client && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: "NEW_MESSAGE",
+              data,
+            }));
+          }
+        });
+        break;
       }
+
+      case "NEW_FRIEND": {
+        console.log("có ng gởi tới server")
+        const { from, to } = message.payload;
+        const client = clients.get(to);
+        if (client && client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: "NEW_FRIEND",
+            payload: { message:"có ng thêm bạn" },
+          }));
+        }
+        break;
+      }
+    }
+  } catch (err) {
+    console.error("Invalid message:", err);
+  }
     });
 
 

@@ -8,12 +8,13 @@ import passport from "passport";
 
 import configWebsocket from "./config/ws/socket";
 import route from "./routes/index";
-import prisma from "../prisma/client";
-import session from "express-session";
 import { sessionMiddleware } from "./middlewares/session";
 
 const app = express();
 
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 app.use(express.json());    
 app.use(passport.initialize());
 app.use(express.urlencoded({ extended: true })); 
@@ -28,7 +29,6 @@ app.use(cors({
 }));
 
 app.use(cookieParser())
-// app.use(morgan('combined'));     // log lại những yêu cầu request
 const PORT = 8000;
 route(app);
 

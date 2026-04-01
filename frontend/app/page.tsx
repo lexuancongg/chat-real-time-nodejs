@@ -1,158 +1,128 @@
 "use client";
 
-import { useState } from "react";
+import { useSocket } from "@/provider/socketProvider";
+import { formatTime } from "@/utils/time/time";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-const mockConversations = [
-  {
-    id: 1,
-    isGroup: false,
-    name: "Nguyễn Văn An",
-    avatarUrl: null,
-    lastMessage: "Oke bạn nhé, mai gặp!",
-    lastMessageTime: new Date(Date.now() - 2 * 60 * 1000),
-    unread: 3,
-    status: "ONLINE",
-  },
-  {
-    id: 2,
-    isGroup: false,
-    name: "Trần Thị Bích",
-    avatarUrl: null,
-    lastMessage: "Haha đúng rồi 😂",
-    lastMessageTime: new Date(Date.now() - 15 * 60 * 1000),
-    unread: 0,
-    status: "ONLINE",
-  },
-  {
-    id: 3,
-    isGroup: true,
-    name: "Nhóm Dự Án Web",
-    avatarUrl: null,
-    lastMessage: "Nam: Push code lên chưa?",
-    lastMessageTime: new Date(Date.now() - 60 * 60 * 1000),
-    unread: 12,
-    status: null,
-  },
-  {
-    id: 4,
-    isGroup: false,
-    name: "Lê Hoàng Minh",
-    avatarUrl: null,
-    lastMessage: "Ok anh",
-    lastMessageTime: new Date(Date.now() - 3 * 60 * 60 * 1000),
-    unread: 0,
-    status: "OFFLINE",
-  },
-  {
-    id: 5,
-    isGroup: true,
-    name: "Hội Bạn Thân 🔥",
-    avatarUrl: null,
-    lastMessage: "Linh: Cuối tuần đi cafe không mn?",
-    lastMessageTime: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    unread: 5,
-    status: null,
-  },
-  {
-    id: 6,
-    isGroup: false,
-    name: "Phạm Thùy Linh",
-    avatarUrl: null,
-    lastMessage: "Bạn ơi file đó gửi mình với",
-    lastMessageTime: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    unread: 0,
-    status: "OFFLINE",
-  },
-];
 
-const mockMessages = [
-  { id: 1, senderId: 99, content: "Hey bạn ơi!", createdAt: new Date(Date.now() - 10 * 60 * 1000), status: "SEEN" },
-  { id: 2, senderId: 1, content: "Oke bạn, có chuyện gì không?", createdAt: new Date(Date.now() - 9 * 60 * 1000), status: "SEEN" },
-  { id: 3, senderId: 99, content: "Mai có đi học không?", createdAt: new Date(Date.now() - 8 * 60 * 1000), status: "SEEN" },
-  { id: 4, senderId: 1, content: "Có chứ, 7h30 nha", createdAt: new Date(Date.now() - 5 * 60 * 1000), status: "SEEN" },
-  { id: 5, senderId: 99, content: "Oke bạn nhé, mai gặp!", createdAt: new Date(Date.now() - 2 * 60 * 1000), status: "DELIVERED" },
-];
+export type Status = "ONLINE" | "OFFLINE";
 
-// Mock friend requests
-const mockFriendRequests = [
-  { id: 1, name: "Hoàng Đức Anh", mutualFriends: 3 },
-  { id: 2, name: "Nguyễn Thị Mai", mutualFriends: 7 },
-  { id: 3, name: "Trần Minh Khoa", mutualFriends: 1 },
-  { id: 4, name: "Võ Thị Hương", mutualFriends: 5 },
-];
+export type Conversation = {
+  id: number;
+  isGroup: boolean;
+  name: string;
+  avatarUrl: string | null;
+  lastMessage: string;
+  lastMessageTime: Date;
+  unread: number;
+  status: Status | null;
+};
 
-const ME = { id: 1, displayName: "Tôi", avatarUrl: null };
+export type Message = {
+  id: number;
+  senderId: number;
+  content: string;
+  createdAt: Date;
+  status: "SENT" | "DELIVERED" | "SEEN";
+};
 
-// ── Helpers ────────────────────────────────────────────────
-function formatTime(date: Date) {
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  if (mins < 1) return "Vừa xong";
-  if (mins < 60) return `${mins} phút`;
-  if (hours < 24) return `${hours} giờ`;
-  return `${days} ngày`;
+export type FriendRequest = {
+  id: number;
+  name: string;
+  mutualFriends: number;
+};
+
+export type UserSearchResult = {
+  id: bigint;
+  displayName: string;
+  avatarUrl: string | null;
+  status: Status;
+};
+
+export type Me = {
+  id: number;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .slice(-2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 }
 
-function getInitials(name: string) {
-  return name.split(" ").slice(-2).map((w) => w[0]).join("").toUpperCase();
-}
-
-const COLORS = [
+const AVATAR_COLORS = [
   "bg-violet-600", "bg-indigo-600", "bg-blue-600",
   "bg-emerald-600", "bg-rose-600", "bg-amber-600",
 ];
 
-function avatarColor(id: number) {
-  return COLORS[id % COLORS.length];
+function avatarColor(id: number): string {
+  return AVATAR_COLORS[id % AVATAR_COLORS.length];
 }
 
-function Avatar({ name, id, size = "md", showStatus, status }: {
-  name: string; id: number; size?: "sm" | "md" | "lg";
-  showStatus?: boolean; status?: string | null;
+
+function Avatar({
+  name,
+  id,
+  size = "md",
+  showStatus,
+  status,
+}: {
+  name: string;
+  id: number;
+  size?: "sm" | "md" | "lg";
+  showStatus?: boolean;
+  status?: Status | null;
 }) {
-  const sizes = { sm: "w-8 h-8 text-xs", md: "w-11 h-11 text-sm", lg: "w-12 h-12 text-sm" };
+  const sizes = {
+    sm: "w-8 h-8 text-xs",
+    md: "w-11 h-11 text-sm",
+    lg: "w-12 h-12 text-sm",
+  };
+
   return (
     <div className="relative flex-shrink-0">
-      <div className={`${sizes[size]} ${avatarColor(id)} rounded-full flex items-center justify-center font-semibold text-white`}>
+      <div
+        className={`${sizes[size]} ${avatarColor(id)} rounded-full flex items-center justify-center font-semibold text-white`}
+      >
         {getInitials(name)}
       </div>
       {showStatus && (
-        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0f1117] ${status === "ONLINE" ? "bg-emerald-400" : "bg-slate-500"}`} />
+        <span
+          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0f1117] ${status === "ONLINE" ? "bg-emerald-400" : "bg-slate-500"
+            }`}
+        />
       )}
     </div>
   );
 }
 
-// ── Friend Request Panel ────────────────────────────────────
 function FriendRequestPanel({
   requests,
   onClose,
   onAccept,
   onDecline,
 }: {
-  requests: typeof mockFriendRequests;
+  requests: FriendRequest[];
   onClose: () => void;
   onAccept: (id: number) => void;
   onDecline: (id: number) => void;
 }) {
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40"
-        onClick={onClose}
-      />
-
-      {/* Panel */}
+      <div className="fixed inset-0 z-40" onClick={onClose} />
       <div className="absolute top-12 left-4 right-4 z-50 bg-[#1a1d2e] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
-        {/* Header */}
         <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-white">Lời mời kết bạn</p>
-            <p className="text-xs text-slate-500 mt-0.5">{requests.length} lời mời đang chờ</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {requests.length} lời mời đang chờ
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -164,7 +134,6 @@ function FriendRequestPanel({
           </button>
         </div>
 
-        {/* List */}
         <div className="max-h-72 overflow-y-auto divide-y divide-white/5">
           {requests.length === 0 ? (
             <div className="py-8 text-center text-slate-600 text-sm">
@@ -172,7 +141,10 @@ function FriendRequestPanel({
             </div>
           ) : (
             requests.map((req) => (
-              <div key={req.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/3 transition-colors">
+              <div
+                key={req.id}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors"
+              >
                 <Avatar name={req.name} id={req.id + 10} size="sm" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{req.name}</p>
@@ -187,7 +159,7 @@ function FriendRequestPanel({
                   </button>
                   <button
                     onClick={() => onDecline(req.id)}
-                    className="px-3 py-1.5 bg-white/8 hover:bg-white/12 text-slate-300 text-xs font-medium rounded-lg transition-colors"
+                    className="px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.12] text-slate-300 text-xs font-medium rounded-lg transition-colors"
                   >
                     Từ chối
                   </button>
@@ -201,19 +173,76 @@ function FriendRequestPanel({
   );
 }
 
-export default function HomePage() {
-  const [activeId, setActiveId] = useState<number | null>(1);
-  const [search, setSearch] = useState("");
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState(mockMessages);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showFriendRequests, setShowFriendRequests] = useState(false);
-  const [friendRequests, setFriendRequests] = useState(mockFriendRequests);
 
-  const active = mockConversations.find((c) => c.id === activeId);
-  const filtered = mockConversations.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+const ME: Me = { id: 1, displayName: "Nguyễn Nam", avatarUrl: null };
+
+
+
+
+
+
+export default function HomePage() {
+
+  const socket = useSocket();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [keyword, setKeyword] = useState("");
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [loadingSearch, setLoadingSearch] = useState(false);
+
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [showFriendRequests, setShowFriendRequests] = useState(false);
+
+  const active = conversations.find((c) => c.id === activeId) ?? null;
+
+
+
+  const conversationsToShow: Conversation[] =
+    keyword.trim().length > 0
+      ? searchResults.map((u) => ({
+        id: Number(u.id),
+        isGroup: false,
+        name: u.displayName ?? "Người dùng",
+        avatarUrl: u.avatarUrl,
+        lastMessage: "",
+        lastMessageTime: new Date(),
+        unread: 0,
+        status: u.status,
+      }))
+      : conversations;
+
+  const searchUser = useCallback(async () => {
+    if (!keyword.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      setLoadingSearch(true);
+      const res = await fetch(
+        `http://localhost:8000/users/search?phone=${keyword}`
+      );
+      const data = await res.json();
+      if (data.success && data.data) {
+        setSearchResults([data.data]);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingSearch(false);
+    }
+  }, [keyword]);
+
+  useEffect(() => {
+    searchUser();
+  }, [searchUser]);
 
   function sendMessage() {
     if (!input.trim()) return;
@@ -238,24 +267,45 @@ export default function HomePage() {
     setFriendRequests((prev) => prev.filter((r) => r.id !== id));
   }
 
-  const requestCount = friendRequests.length;
 
+  const handleAddFriend = (to:number)=>{
+    console.log(to)
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+         console.log("Socket chưa sẵn sàng");
+         return;
+      }
+     const msg :WSMessage= {
+    type: "NEW_FRIEND",
+    payload: {
+      from: 0,    
+      to:to
+      
+    },
+   
+  };
+   socket.send(JSON.stringify(msg));
+   
+
+  }
   return (
     <div className="h-screen bg-[#0f1117] flex overflow-hidden">
 
       {/* ── Sidebar ── */}
-      <aside className={`${sidebarOpen ? "w-72" : "w-0"} flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col border-r border-white/5 bg-[#13151f]`}>
+      <aside
+        className={`${sidebarOpen ? "w-72" : "w-0"
+          } flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col border-r border-white/5 bg-[#13151f]`}
+      >
         {/* Header */}
         <div className="px-4 pt-5 pb-3 flex-shrink-0 relative">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-lg font-semibold text-white">Tin nhắn</h1>
             <div className="flex items-center gap-1">
-              {/* Bell / Friend Request Button */}
+
+              {/* Friend Requests Bell */}
               <div className="relative">
                 <button
                   onClick={() => setShowFriendRequests((v) => !v)}
-                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors
-                    ${showFriendRequests
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${showFriendRequests
                       ? "bg-indigo-600/20 text-indigo-400"
                       : "hover:bg-white/5 text-slate-400 hover:text-white"
                     }`}
@@ -266,11 +316,9 @@ export default function HomePage() {
                     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                   </svg>
                 </button>
-
-                {/* Badge */}
-                {requestCount > 0 && (
+                {friendRequests.length > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none pointer-events-none select-none">
-                    {requestCount > 9 ? "9+" : requestCount}
+                    {friendRequests.length > 9 ? "9+" : friendRequests.length}
                   </span>
                 )}
               </div>
@@ -285,7 +333,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Friend Request Dropdown Panel */}
           {showFriendRequests && (
             <FriendRequestPanel
               requests={friendRequests}
@@ -297,60 +344,100 @@ export default function HomePage() {
 
           {/* Search */}
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+              width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
+            {loadingSearch && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+            )}
             <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (searchTimeoutRef.current)
+                  clearTimeout(searchTimeoutRef.current);
+                searchTimeoutRef.current = setTimeout(() => {
+                  setKeyword(value);
+                }, 500);
+              }}
               placeholder="Tìm kiếm..."
-              className="w-full bg-[#0f1117] border border-white/8 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500/50 transition-all"
+              className="w-full bg-[#0f1117] border border-white/[0.08] rounded-xl pl-9 pr-8 py-2.5 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500/50 transition-all"
             />
           </div>
         </div>
 
-        {/* List */}
+        {/* Conversation List */}
         <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5 scrollbar-thin">
-          {filtered.map((conv) => (
-            <button
-              key={conv.id}
-              onClick={() => setActiveId(conv.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-left group
-                ${activeId === conv.id ? "bg-indigo-600/15 border border-indigo-500/20" : "hover:bg-white/4 border border-transparent"}`}
-            >
-              <Avatar name={conv.name} id={conv.id} showStatus={!conv.isGroup} status={conv.status} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm font-medium truncate ${activeId === conv.id ? "text-white" : "text-slate-200"}`}>
-                    {conv.name}
-                  </span>
-                  <span className="text-xs text-slate-500 flex-shrink-0 ml-2">
-                    {formatTime(conv.lastMessageTime)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-xs text-slate-500 truncate">{conv.lastMessage}</p>
-                  {conv.unread > 0 && (
-                    <span className="ml-2 flex-shrink-0 bg-indigo-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                      {conv.unread > 9 ? "9+" : conv.unread}
+          {conversationsToShow.length === 0 && (
+            <p className="text-center text-slate-600 text-xs py-8">
+              {keyword.trim() ? "Không tìm thấy người dùng" : "Chưa có cuộc trò chuyện nào"}
+            </p>
+          )}
+          {conversationsToShow.map((conv) => (
+            <div key={conv.id} className="relative">a
+              <button
+                onClick={() => setActiveId(conv.id)}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-left group ${activeId === conv.id
+                    ? "bg-indigo-600/15 border border-indigo-500/20"
+                    : "hover:bg-white/[0.04] border border-transparent"
+                  }`}
+              >
+                <Avatar
+                  name={conv.name}
+                  id={conv.id}
+                  showStatus={!conv.isGroup}
+                  status={conv.status}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`text-sm font-medium truncate ${activeId === conv.id ? "text-white" : "text-slate-200"
+                        }`}
+                    >
+                      {conv.name}
                     </span>
-                  )}
+                    <span className="text-xs text-slate-500 flex-shrink-0 ml-2">
+                      {formatTime(conv.lastMessageTime)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <p className="text-xs text-slate-500 truncate">{conv.lastMessage}</p>
+                    {conv.unread > 0 && (
+                      <span className="ml-2 flex-shrink-0 bg-indigo-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                        {conv.unread > 9 ? "9+" : conv.unread}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+
+              <button
+                className="absolute right-2 top-2 bg-green-500 text-white px-2 py-1 text-xs rounded hover:bg-green-600"
+                onClick={(event)=> handleAddFriend(conv.id)}
+              >
+                Kết bạn
+              </button>
+            </div>
           ))}
         </div>
 
         {/* Me */}
         <div className="px-4 py-3 border-t border-white/5 flex items-center gap-3 flex-shrink-0">
-          <Avatar name="Nguyễn Nam" id={ME.id} size="sm" />
+          <Avatar name={ME.displayName} id={ME.id} size="sm" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">Nguyễn Nam</p>
+            <p className="text-sm font-medium text-white truncate">
+              {ME.displayName}
+            </p>
             <p className="text-xs text-emerald-400">Đang hoạt động</p>
           </div>
           <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-500 hover:text-white transition-colors">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3" /><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
             </svg>
           </button>
         </div>
@@ -367,14 +454,31 @@ export default function HomePage() {
                 className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
                 </svg>
               </button>
-              <Avatar name={active.name} id={active.id} size="sm" showStatus={!active.isGroup} status={active.status} />
+              <Avatar
+                name={active.name}
+                id={active.id}
+                size="sm"
+                showStatus={!active.isGroup}
+                status={active.status}
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white">{active.name}</p>
-                <p className={`text-xs ${active.status === "ONLINE" ? "text-emerald-400" : "text-slate-500"}`}>
-                  {active.isGroup ? "5 thành viên" : active.status === "ONLINE" ? "Đang hoạt động" : "Ngoại tuyến"}
+                <p
+                  className={`text-xs ${active.status === "ONLINE"
+                      ? "text-emerald-400"
+                      : "text-slate-500"
+                    }`}
+                >
+                  {active.isGroup
+                    ? "Nhóm"
+                    : active.status === "ONLINE"
+                      ? "Đang hoạt động"
+                      : "Ngoại tuyến"}
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -383,7 +487,10 @@ export default function HomePage() {
                   { icon: "M15 10l4.553-2.069A1 1 0 0 1 21 8.82v6.36a1 1 0 0 1-1.447.894L15 14M3 8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z" },
                   { icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" },
                 ].map((btn, i) => (
-                  <button key={i} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
+                  <button
+                    key={i}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+                  >
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d={btn.icon} />
                     </svg>
@@ -392,26 +499,46 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3">
+              {messages.length === 0 && (
+                <p className="text-center text-slate-600 text-xs">
+                  Bắt đầu cuộc trò chuyện
+                </p>
+              )}
               {messages.map((msg) => {
                 const isMe = msg.senderId === ME.id;
                 return (
-                  <div key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                    {!isMe && <Avatar name={active.name} id={active.id} size="sm" />}
-                    <div className={`max-w-[65%] group`}>
-                      <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed
-                        ${isMe
-                          ? "bg-indigo-600 text-white rounded-br-sm"
-                          : "bg-[#1e2130] text-slate-200 rounded-bl-sm border border-white/5"
-                        }`}>
+                  <div
+                    key={msg.id}
+                    className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"
+                      }`}
+                  >
+                    {!isMe && (
+                      <Avatar name={active.name} id={active.id} size="sm" />
+                    )}
+                    <div className="max-w-[65%]">
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isMe
+                            ? "bg-indigo-600 text-white rounded-br-sm"
+                            : "bg-[#1e2130] text-slate-200 rounded-bl-sm border border-white/5"
+                          }`}
+                      >
                         {msg.content}
                       </div>
-                      <div className={`flex items-center gap-1 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
-                        <span className="text-xs text-slate-600">{formatTime(msg.createdAt)}</span>
+                      <div
+                        className={`flex items-center gap-1 mt-1 ${isMe ? "justify-end" : "justify-start"
+                          }`}
+                      >
+                        <span className="text-xs text-slate-600">
+                          {formatTime(msg.createdAt)}
+                        </span>
                         {isMe && (
                           <span className="text-xs text-slate-600">
-                            {msg.status === "SEEN" ? "✓✓" : msg.status === "DELIVERED" ? "✓✓" : "✓"}
+                            {msg.status === "SEEN"
+                              ? "✓✓"
+                              : msg.status === "DELIVERED"
+                                ? "✓✓"
+                                : "✓"}
                           </span>
                         )}
                       </div>
@@ -423,16 +550,19 @@ export default function HomePage() {
 
             {/* Input */}
             <div className="flex-shrink-0 px-4 py-4 border-t border-white/5">
-              <div className="flex items-center gap-3 bg-[#1a1d27] border border-white/8 rounded-2xl px-4 py-2.5">
+              <div className="flex items-center gap-3 bg-[#1a1d27] border border-white/[0.08] rounded-2xl px-4 py-2.5">
                 <button className="text-slate-500 hover:text-indigo-400 transition-colors flex-shrink-0">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
                   </svg>
                 </button>
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && !e.shiftKey && sendMessage()
+                  }
                   placeholder="Nhập tin nhắn..."
                   className="flex-1 bg-transparent text-sm text-white placeholder-slate-600 outline-none"
                 />
@@ -447,21 +577,24 @@ export default function HomePage() {
                   className="w-8 h-8 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl flex items-center justify-center transition-all flex-shrink-0"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                    <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
                   </svg>
                 </button>
               </div>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-600">
+          <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <div className="w-16 h-16 rounded-2xl bg-white/4 flex items-center justify-center mx-auto mb-4">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <div className="w-16 h-16 rounded-2xl bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-600">
                   <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" />
                 </svg>
               </div>
-              <p className="text-sm">Chọn cuộc trò chuyện để bắt đầu</p>
+              <p className="text-sm text-slate-600">
+                Chọn cuộc trò chuyện để bắt đầu
+              </p>
             </div>
           </div>
         )}

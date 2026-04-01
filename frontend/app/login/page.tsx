@@ -1,5 +1,7 @@
 "use client";
 
+import { AuthRequest } from "@/models/auth/auth";
+import authService from "@/service/authService";
 import { useState } from "react";
 
 export default function LoginPage() {
@@ -18,21 +20,13 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:5000/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message || "Đăng nhập thất bại");
-        return;
+      const data:AuthRequest = {
+        password,
+        username:email
       }
+      await authService.login(data)
 
-      window.location.href = "/chat";
+      window.location.href = "/";
     } catch {
       setError("Không thể kết nối đến server");
     } finally {

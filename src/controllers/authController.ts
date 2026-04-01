@@ -62,11 +62,15 @@ class AuthController {
           error: { code: "INVALID_CREDENTIALS", message: "Sai username hoặc password" }
         });
       }
-        req.session.user = {
-          id: Number(user.id),
-          username: user.username,
-          roles: ["USER"] 
-        };
+      req.session.user = {
+        id: Number(user.id),
+        username: user.username,
+        roles: ["USER"]
+      };
+
+      return res.status(200).json({
+        success: true,
+      });
     } catch (error) {
 
     }

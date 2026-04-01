@@ -12,6 +12,7 @@ model User {
   username            String               @unique
   password            String
   displayName         String?
+  phone               String?              @unique
   avatarId            BigInt?              @unique
   avatar              Image?               @relation("UserAvatar", fields: [avatarId], references: [id])
   status              Status               @default(OFFLINE)

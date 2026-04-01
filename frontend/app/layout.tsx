@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { SocketProvider } from "@/provider/socketProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -31,7 +32,9 @@ export default function RootLayout({
     >
       <body className="h-full bg-[#0f1117] text-[#e2e8f0] font-[var(--font-inter)] antialiased overflow-hidden">
         <div className="h-full flex flex-col">
+         <SocketProvider>
           {children}
+        </SocketProvider>
         </div>
       </body>
     </html>

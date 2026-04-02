@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 const SocketContext = createContext<WebSocket | null>(null);
 
@@ -20,6 +21,20 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     ws.onclose = () => {
       console.log("WS disconnected");
       setSocket(null);
+    };
+
+     ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+
+      switch (message.type) {
+        case "NEW_FRIEND":
+          toast(`Bạn có người thêm bạn: ${message.payload.message}`);
+          break;
+
+        case "NEW_MESSAGE":
+          // xử lý message tương tự
+          break;
+      }
     };
 
     return () => {

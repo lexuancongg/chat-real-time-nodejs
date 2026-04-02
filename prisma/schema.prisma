@@ -8,61 +8,118 @@ datasource db {
 }
 
 model User {
-  id                  BigInt               @id @default(autoincrement())
-  username            String               @unique
-  password            String
-  displayName         String?
-  phone               String?              @unique
-  avatarId            BigInt?              @unique
-  avatar              Image?               @relation("UserAvatar", fields: [avatarId], references: [id])
-  status              Status               @default(OFFLINE)
-  createdAt           DateTime             @default(now())
-  conversationMembers ConversationMember[]
-  devices             Device[]
-  friendOf            Friend[]             @relation("UserFriends_Friend")
-  friends             Friend[]             @relation("UserFriends")
-  messages            Message[]
+  id          BigInt  @id @default(autoincrement())
+  username    String  @unique
+  password    String
+  displayName String?
+  phone       String? @unique
+  avatarId    BigInt? @unique
+  status      Status  @default(OFFLINE)
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  avatar               Image?              @relation("UserAvatar", fields: [avatarId], references: [id])
+  conversationMembers  ConversationMember[]
+  devices              Device[]
+  friends              Friend[]            @relation("UserFriends")
+  friendOf             Friend[]            @relation("UserFriends_Friend")
+  friendRequestsSent   FriendRequest[]     @relation("RequestsSent")
+  friendRequestsReceived FriendRequest[]   @relation("RequestsReceived")
+  blocksInitiated      Block[]             @relation("BlocksInitiated")
+  blockedBy            Block[]             @relation("BlockedBy")
+  messages             Message[]
 }
+
+
 
 model Image {
   id        BigInt   @id @default(autoincrement())
   url       String
   publicId  String?
   createdAt DateTime @default(now())
-  user      User?    @relation("UserAvatar")
+
+  user User? @relation("UserAvatar")
 }
+
+
+
+model FriendRequest {
+  id         BigInt              @id @default(autoincrement())
+  senderId   BigInt
+  receiverId BigInt
+  status     FriendRequestStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sender   User @relation("RequestsSent",     fields: [senderId],   references: [id])
+  receiver User @relation("RequestsReceived", fields: [receiverId], references: [id])
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId])
+  @@index([senderId])   
+}
+
 
 model Friend {
-  id        BigInt       @id @default(autoincrement())
-  userId    BigInt
-  friendId  BigInt
-  status    FriendStatus @default(PENDING)
-  createdAt DateTime     @default(now())
-  friend    User         @relation("UserFriends_Friend", fields: [friendId], references: [id])
-  user      User         @relation("UserFriends", fields: [userId], references: [id])
+  id       BigInt @id @default(autoincrement())
+  userId   BigInt
+  friendId BigInt
+
+  createdAt DateTime @default(now())
+
+  user   User @relation("UserFriends",        fields: [userId],   references: [id])
+  friend User @relation("UserFriends_Friend", fields: [friendId], references: [id])
 
   @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
 }
 
+
+model Block {
+  id        BigInt   @id @default(autoincrement())
+  blockerId BigInt
+  blockedId BigInt
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlocksInitiated", fields: [blockerId], references: [id])
+  blocked User @relation("BlockedBy",       fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+
+
 model Conversation {
-  id            BigInt               @id @default(autoincrement())
-  isGroup       Boolean              @default(false)
-  createdAt     DateTime             @default(now())
+  id            BigInt   @id @default(autoincrement())
+  isGroup       Boolean  @default(false)
+  name          String?  // tên nhóm (nếu isGroup = true)
   lastMessageId BigInt?
-  members       ConversationMember[]
-  messages      Message[]
+  createdAt     DateTime @default(now())
+
+  members  ConversationMember[]
+  messages Message[]
 }
 
 model ConversationMember {
-  id             BigInt       @id @default(autoincrement())
+  id             BigInt    @id @default(autoincrement())
   conversationId BigInt
   userId         BigInt
-  joinedAt       DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
+  role           GroupRole @default(MEMBER)
+  joinedAt       DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId],         references: [id])
 
   @@unique([conversationId, userId])
+  @@index([userId])
 }
+
+
 
 model Message {
   id             BigInt        @id @default(autoincrement())
@@ -72,13 +129,16 @@ model Message {
   type           MessageType   @default(TEXT)
   status         MessageStatus @default(SENT)
   createdAt      DateTime      @default(now())
-  conversation   Conversation  @relation(fields: [conversationId], references: [id])
-  sender         User          @relation(fields: [senderId], references: [id])
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation(fields: [senderId],       references: [id])
 
   @@index([conversationId])
   @@index([senderId])
   @@index([createdAt])
 }
+
+
 
 model Device {
   id         BigInt    @id @default(autoincrement())
@@ -88,18 +148,23 @@ model Device {
   pushToken  String?
   lastSeen   DateTime?
   isOnline   Boolean   @default(false)
-  user       User      @relation(fields: [userId], references: [id])
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, deviceId])
+  @@index([userId])
 }
+
 
 enum Status {
   ONLINE
   OFFLINE
 }
 
-enum FriendStatus {
+enum FriendRequestStatus {
   PENDING
   ACCEPTED
-  BLOCKED
+  REJECTED
 }
 
 enum GroupRole {

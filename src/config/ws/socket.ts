@@ -15,6 +15,7 @@ const configWebsocket = (server: http.Server) => {
     const cookies: Cookies = cookie.parse(req.headers.cookie || "");
     const rawSid = cookies["connect.sid"];
     if (!rawSid) {
+      console.log("không có sesion")
       return ws.close();
     }
     let sessionId = rawSid.startsWith("s:")
@@ -72,9 +73,9 @@ const configWebsocket = (server: http.Server) => {
         });
         break;
       }
+      
 
       case "NEW_FRIEND": {
-        console.log("có ng gởi tới server")
         const { from, to } = message.payload;
         const client = clients.get(to);
         if (client && client.readyState === WebSocket.OPEN) {

@@ -7,7 +7,7 @@ import { ApiResponse } from "../models/response/response";
 class AuthController {
   async register(req: Request<{}, {}, RegisterRequestDto>, res: Response<ApiResponse<RegisterResponseDto>>, next: NextFunction) {
     try {
-      const { password, username, displayName } = req.body;
+      const { password, username, displayName, phone } = req.body;
       const existingUser = await prisma.user.findUnique({ where: { username } });
       if (existingUser) {
         const response: ApiResponse<RegisterResponseDto> = {
@@ -25,7 +25,8 @@ class AuthController {
         data: {
           username,
           password: hashedPassword,
-          displayName: displayName
+          displayName,
+          phone
         },
       });
 
@@ -45,22 +46,35 @@ class AuthController {
     }
   }
 
+
+
+
   async login(req: Request<{}, {}, LoginRequestDto>, res: Response<ApiResponse<void>>, next: NextFunction) {
     try {
       const { password, username } = req.body;
       const user = await prisma.user.findUnique({ where: { username } });
       if (!user) {
-        return res.status(401).json({
-          success: false,
-          error: { code: "INVALID_CREDENTIALS", message: "Sai username hoặc password" }
-        });
+        return res.status(401).json(
+          {
+            success: false,
+            error: {
+              code: "INVALID_CREDENTIALS",
+              message: "Sai username hoặc password"
+            }
+          }
+        );
       }
       const isMatch = await compare(password, user.password);
       if (!isMatch) {
-        return res.status(401).json({
-          success: false,
-          error: { code: "INVALID_CREDENTIALS", message: "Sai username hoặc password" }
-        });
+        return res.status(401).json(
+          {
+            success: false,
+            error: {
+              code: "INVALID_CREDENTIALS",
+              message: "Sai username hoặc password"
+            }
+          }
+        );
       }
       req.session.user = {
         id: Number(user.id),

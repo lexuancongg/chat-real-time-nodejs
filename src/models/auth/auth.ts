@@ -1,7 +1,8 @@
 export type RegisterRequestDto = {
   username: string;
   password: string;
-  displayName?: string; 
+  displayName: string; 
+  phone:string;
 };
 
 export type RegisterResponseDto = {

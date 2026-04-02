@@ -1,4 +1,29 @@
-type WSMessage =
-  | { type: "NEW_FRIEND"; payload: { from:number,to:number } }
-  | { type: "CHAT_MESSAGE"; payload: { from: string; text: string } }
-  | { type: "TYPING"; payload: { from: string } };
+type MessageType = "TEXT" | "IMAGE" | "FILE" | "VIDEO";
+
+type MessageStatus = "SENT" | "DELIVERED" | "SEEN";
+
+type Sender = {
+  id: string;
+  displayName: string;
+  avatar?: string;
+};
+
+export type WSMessagePayload = {
+  id?: string;
+  type: "TEXT" | "IMAGE" | "FILE" | "VIDEO" | "FRIEND_REQUEST"; 
+  conversationId?: string;    
+  sender?: Sender;
+  recipientId?: string|number;       
+  content?: string;           
+  status?: MessageStatus;     
+  createdAt?: string;
+};
+
+
+
+
+export type NewRequestFriendResponsePayload = {
+  message: string;    
+  sender: Sender;     
+  requestId?: string; 
+};

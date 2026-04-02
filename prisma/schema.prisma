@@ -18,7 +18,6 @@ model User {
 
   createdAt DateTime @default(now())
 
-  // Relations
   avatar               Image?              @relation("UserAvatar", fields: [avatarId], references: [id])
   conversationMembers  ConversationMember[]
   devices              Device[]

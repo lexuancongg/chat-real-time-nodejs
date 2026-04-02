@@ -11,4 +11,7 @@ export type LoginResponse = {
 export type RegisterRequestDto = {
   username: string;
   password: string;
+  displayName:string,
+  phone:string
+  
 };

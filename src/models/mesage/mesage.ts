@@ -8,12 +8,22 @@ type Sender = {
   avatar?: string;
 };
 
-type MessagePayload = {
-  id: string;
-  conversationId: string;
-  sender: Sender;
-  content: string;
-  type: MessageType;
-  status: MessageStatus;
-  createdAt: string; 
+export type WSMessagePayload = {
+  id?: string;
+  type?: "TEXT" | "IMAGE" | "FILE" | "VIDEO" | "FRIEND_REQUEST"; 
+  conversationId?: string;    
+  sender?: Sender;
+  recipientId?: string;       
+  content?: string;           
+  status?: MessageStatus;     
+  createdAt: string;
+};
+
+
+
+
+export type NewRequestFriendResponsePayload = {
+  message: string;    
+  sender: Sender;     
+  requestId?: string; 
 };

@@ -1,11 +1,18 @@
 "use client";
 
+import Avatar from "@/components/common/avatar";
+import UserSearchItem from "@/components/common/userSearchItem";
+import FriendRequestPanel from "@/components/friends/friendRequestPanel";
+import { WsEvent, WsEventType } from "@/models/event/event";
+import { WSMessagePayload } from "@/models/message/message";
+import { Status, UserSearchResult } from "@/models/users/user";
 import { useSocket } from "@/provider/socketProvider";
+import conversationService from "@/service/conversationService";
 import { formatTime } from "@/utils/time/time";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 
-export type Status = "ONLINE" | "OFFLINE";
+
 
 export type Conversation = {
   id: number;
@@ -32,12 +39,6 @@ export type FriendRequest = {
   mutualFriends: number;
 };
 
-export type UserSearchResult = {
-  id: bigint;
-  displayName: string;
-  avatarUrl: string | null;
-  status: Status;
-};
 
 export type Me = {
   id: number;
@@ -46,135 +47,10 @@ export type Me = {
 };
 
 
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .slice(-2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-}
-
-const AVATAR_COLORS = [
-  "bg-violet-600", "bg-indigo-600", "bg-blue-600",
-  "bg-emerald-600", "bg-rose-600", "bg-amber-600",
-];
-
-function avatarColor(id: number): string {
-  return AVATAR_COLORS[id % AVATAR_COLORS.length];
-}
+const ME: Me = { id: 1, displayName: "Lê xuân công", avatarUrl: null };
 
 
-function Avatar({
-  name,
-  id,
-  size = "md",
-  showStatus,
-  status,
-}: {
-  name: string;
-  id: number;
-  size?: "sm" | "md" | "lg";
-  showStatus?: boolean;
-  status?: Status | null;
-}) {
-  const sizes = {
-    sm: "w-8 h-8 text-xs",
-    md: "w-11 h-11 text-sm",
-    lg: "w-12 h-12 text-sm",
-  };
 
-  return (
-    <div className="relative flex-shrink-0">
-      <div
-        className={`${sizes[size]} ${avatarColor(id)} rounded-full flex items-center justify-center font-semibold text-white`}
-      >
-        {getInitials(name)}
-      </div>
-      {showStatus && (
-        <span
-          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0f1117] ${status === "ONLINE" ? "bg-emerald-400" : "bg-slate-500"
-            }`}
-        />
-      )}
-    </div>
-  );
-}
-
-function FriendRequestPanel({
-  requests,
-  onClose,
-  onAccept,
-  onDecline,
-}: {
-  requests: FriendRequest[];
-  onClose: () => void;
-  onAccept: (id: number) => void;
-  onDecline: (id: number) => void;
-}) {
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute top-12 left-4 right-4 z-50 bg-[#1a1d2e] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
-        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-white">Lời mời kết bạn</p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {requests.length} lời mời đang chờ
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-500 hover:text-white transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="max-h-72 overflow-y-auto divide-y divide-white/5">
-          {requests.length === 0 ? (
-            <div className="py-8 text-center text-slate-600 text-sm">
-              Không có lời mời nào
-            </div>
-          ) : (
-            requests.map((req) => (
-              <div
-                key={req.id}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors"
-              >
-                <Avatar name={req.name} id={req.id + 10} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{req.name}</p>
-                  <p className="text-xs text-slate-500">{req.mutualFriends} bạn chung</p>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={() => onAccept(req.id)}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
-                  >
-                    Chấp nhận
-                  </button>
-                  <button
-                    onClick={() => onDecline(req.id)}
-                    className="px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.12] text-slate-300 text-xs font-medium rounded-lg transition-colors"
-                  >
-                    Từ chối
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-
-const ME: Me = { id: 1, displayName: "Nguyễn Nam", avatarUrl: null };
 
 
 
@@ -183,7 +59,10 @@ const ME: Me = { id: 1, displayName: "Nguyễn Nam", avatarUrl: null };
 
 export default function HomePage() {
 
-  const socket = useSocket();
+ const context = useSocket();
+if (!context) return; 
+
+const { socket,pendingFriendCount, setPendingFriendCount } = context;
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [keyword, setKeyword] = useState("");
@@ -191,12 +70,21 @@ export default function HomePage() {
   const [loadingSearch, setLoadingSearch] = useState(false);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
+
   const [activeId, setActiveId] = useState<number | null>(null);
+
+
+
+
+
+
+
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequestResponse[]>([]);
   const [showFriendRequests, setShowFriendRequests] = useState(false);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
@@ -216,6 +104,8 @@ export default function HomePage() {
         status: u.status,
       }))
       : conversations;
+
+
 
   const searchUser = useCallback(async () => {
     if (!keyword.trim()) {
@@ -268,29 +158,42 @@ export default function HomePage() {
   }
 
 
-  const handleAddFriend = (to:number)=>{
-    console.log(to)
+  const handleAddFriend = (recipientId:number)=>{
       if (!socket || socket.readyState !== WebSocket.OPEN) {
          console.log("Socket chưa sẵn sàng");
          return;
       }
-     const msg :WSMessage= {
-    type: "NEW_FRIEND",
-    payload: {
-      from: 0,    
-      to:to
-      
-    },
-   
-  };
-   socket.send(JSON.stringify(msg));
-   
-
+     const message: WsEvent<WSMessagePayload> ={
+      type:WsEventType.NEW_ADD_FRIEND,
+      data:{
+        type:"TEXT",
+        recipientId:recipientId
+      }
+     }
+  
+   socket.send(JSON.stringify(message));
+  
   }
+
+
+  const handleChooseUser = (userId:number) =>{
+    conversationService.getOrCreateConversationByUserId(userId)
+    .then((res)=>{
+      const conversationId = res.data;
+      if(!conversationId) return;
+      setActiveId(res.data)
+
+    })
+    .catch((error)=>{
+      console.log(error)
+    })
+  }
+
+
+  
   return (
     <div className="h-screen bg-[#0f1117] flex overflow-hidden">
 
-      {/* ── Sidebar ── */}
       <aside
         className={`${sidebarOpen ? "w-72" : "w-0"
           } flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col border-r border-white/5 bg-[#13151f]`}
@@ -301,7 +204,6 @@ export default function HomePage() {
             <h1 className="text-lg font-semibold text-white">Tin nhắn</h1>
             <div className="flex items-center gap-1">
 
-              {/* Friend Requests Bell */}
               <div className="relative">
                 <button
                   onClick={() => setShowFriendRequests((v) => !v)}
@@ -316,14 +218,13 @@ export default function HomePage() {
                     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                   </svg>
                 </button>
-                {friendRequests.length > 0 && (
+                {pendingFriendCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none pointer-events-none select-none">
-                    {friendRequests.length > 9 ? "9+" : friendRequests.length}
+                    {pendingFriendCount > 9 ? "9+" : pendingFriendCount}
                   </span>
                 )}
               </div>
 
-              {/* Compose */}
               <button className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -370,8 +271,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5 scrollbar-thin">
+        {/* <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5 scrollbar-thin">
           {conversationsToShow.length === 0 && (
             <p className="text-center text-slate-600 text-xs py-8">
               {keyword.trim() ? "Không tìm thấy người dùng" : "Chưa có cuộc trò chuyện nào"}
@@ -423,9 +323,14 @@ export default function HomePage() {
               </button>
             </div>
           ))}
-        </div>
+        </div> */}
+        <UserSearchItem onAddFriend={handleAddFriend}
+        users={searchResults}
+        onChooseUser={handleChooseUser}
+        >
 
-        {/* Me */}
+        </UserSearchItem>
+
         <div className="px-4 py-3 border-t border-white/5 flex items-center gap-3 flex-shrink-0">
           <Avatar name={ME.displayName} id={ME.id} size="sm" />
           <div className="flex-1 min-w-0">
@@ -443,7 +348,8 @@ export default function HomePage() {
         </div>
       </aside>
 
-      {/* ── Chat Area ── */}
+
+
       <main className="flex-1 flex flex-col min-w-0">
         {active ? (
           <>

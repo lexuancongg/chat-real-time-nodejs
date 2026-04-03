@@ -1,3 +1,4 @@
+import { Conversation } from "@/models/conversations/conversation";
 import { ApiResponse } from "@/models/response/response";
 import apiClient from "@/utils/api/apiClient";
 
@@ -8,7 +9,7 @@ class ConversationService {
     }
 
 
-    async getOrCreateConversationByUserId(userId:number):Promise<ApiResponse<number>>{
+    async getOrCreateConversationByUserId(userId:number):Promise<ApiResponse<Conversation>>{
         const response = await apiClient.post(`${this.baseUrl}/private`,JSON.stringify({userId:userId}));
         if(response.ok){
             return await response.json();

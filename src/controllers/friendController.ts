@@ -13,22 +13,20 @@ class FriendController {
             const userId = req.session?.user?.id;
             if (!userId) {
                 return res.status(401).json({ success: false, data: 0, message: "Unauthorized" });
-
             }
+
             const count = await prisma.friendRequest.count({
                 where: {
-                    receiverId: BigInt(userId),
+                    receiverId: userId, // ko cần BigInt nữa
                     status: "PENDING"
                 }
-
             });
+
             return res.json({ success: true, data: count });
         } catch (err) {
             next(err);
         }
     }
-
-
 
     async getRequestFriends(
         req: Request,
@@ -36,13 +34,13 @@ class FriendController {
         next: NextFunction
     ) {
         try {
-            const userId = req.session?.user?.id; // lấy từ session
+            const userId = req.session?.user?.id;
             if (!userId) {
                 return res.status(401).json({ success: false, data: [], message: "Unauthorized" });
             }
 
             const requests = await prisma.friendRequest.findMany({
-                where: { receiverId: BigInt(userId), status: "PENDING" },
+                where: { receiverId: userId, status: "PENDING" },
                 select: {
                     id: true,
                     sender: { select: { id: true, displayName: true, avatar: true } },
@@ -52,31 +50,24 @@ class FriendController {
             });
 
             const responseData: FriendRequestResponse[] = requests.map((r) => ({
-                id: Number(r.id),
+                id: r.id, // Prisma đã trả về number
                 createdAt: r.createdAt.toISOString(),
                 sender: {
-                    id: Number(r.sender.id),
+                    id: r.sender.id,
                     displayName: r.sender.displayName || "Unknown",
                     avatar: r.sender.avatar?.url || null,
                 },
             }));
 
-            const response: ApiResponse<FriendRequestResponse[]> = {
+            res.json({
                 success: true,
                 data: responseData,
                 message: "Lấy danh sách lời mời kết bạn thành công",
-            };
-
-            res.json(response);
-
+            });
         } catch (err) {
             next(err);
         }
     }
-
-
-
 }
-
 
 export default new FriendController();

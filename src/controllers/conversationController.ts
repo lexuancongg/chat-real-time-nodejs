@@ -1,12 +1,12 @@
-import { NextFunction, Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import prisma from "../../prisma/client";
-import { ApiResponse } from "../models/response/response";
+import { Conversation } from "../models/conversations/conversation";
 
 class ConversationController {
   async getOrCreateConversationByUserId(
     req: Request<{}, {}, { userId: number }>,
-    res: Response<ApiResponse<number>>,
-    next: NextFunction
+    res: Response<{ success: boolean; message: string; data?: Conversation }>,
+    // next: NextFunction
   ) {
     try {
       const { userId } = req.body;
@@ -19,48 +19,67 @@ class ConversationController {
         });
       }
 
-      const conversation = await prisma.conversation.findFirst({
+      // tìm conversation 1-1
+      let conversation = await prisma.conversation.findFirst({
         where: {
           isGroup: false,
           AND: [
-            {
-              members: {
-                some: { userId: myId },
-              },
-            },
-            {
-              members: {
-                some: { userId: userId },
-              },
-            },
+            { members: { some: { userId: myId } } },
+            { members: { some: { userId } } },
           ],
         },
-      });
-
-      if (conversation) {
-        return res.json({
-          success: true,
-          message: "OK",
-          data: Number(conversation.id),
-        });
-      }
-
-      const newConv = await prisma.conversation.create({
-        data: {
-          isGroup: false,
+        include: {
           members: {
-            create: [
-              { userId: myId },
-              { userId: userId }, 
-            ],
+            include: {
+              user: true,
+            },
           },
         },
       });
 
+      // nếu chưa có thì tạo mới
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            isGroup: false,
+            members: {
+              create: [{ userId: myId }, { userId }],
+            },
+          },
+          include: {
+            members: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        });
+      }
+
+      // xác định tên hiển thị
+      let displayName = conversation.isGroup
+        ? conversation.name || "Group"
+        : conversation.members.find((m) => m.userId !== myId)?.user.displayName || "User";
+
+      let avatarUrl = conversation.isGroup
+        ? null : ""
+        // : conversation.members.find((m) => m.userId !== myId)?.user.avatar?.url || null;
+
+      const result: Conversation = {
+        id: conversation.id,
+        isGroup: conversation.isGroup,
+        name: displayName,
+        avatarUrl,
+        lastMessage: "", // có thể bổ sung sau khi join với Message
+        lastMessageTime: new Date(),
+        unread: 0, // có thể tính sau
+        status: null, // có thể lấy ONLINE/OFFLINE từ User.status
+      };
+
       return res.json({
         success: true,
-        message: "Created",
-        data: Number(newConv.id)
+        message: "OK",
+        data: result,
       });
     } catch (err) {
       next(err);

@@ -76,8 +76,9 @@ class AuthController {
           }
         );
       }
+      console.log("userId " ,user.id )
       req.session.user = {
-        id: Number(user.id),
+        id: (user.id),
         username: user.username,
         roles: ["USER"]
       };

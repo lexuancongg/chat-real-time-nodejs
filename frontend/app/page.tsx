@@ -3,41 +3,21 @@
 import Avatar from "@/components/common/avatar";
 import UserSearchItem from "@/components/common/userSearchItem";
 import FriendRequestPanel from "@/components/friends/friendRequestPanel";
+import { Conversation } from "@/models/conversations/conversation";
 import { WsEvent, WsEventType } from "@/models/event/event";
-import { WSMessagePayload } from "@/models/message/message";
+import { Message, WSMessagePayload } from "@/models/message/message";
 import { Status, UserSearchResult } from "@/models/users/user";
 import { useSocket } from "@/provider/socketProvider";
 import conversationService from "@/service/conversationService";
+import messageService from "@/service/messageService";
 import { formatTime } from "@/utils/time/time";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 
 
 
-export type Conversation = {
-  id: number;
-  isGroup: boolean;
-  name: string;
-  avatarUrl: string | null;
-  lastMessage: string;
-  lastMessageTime: Date;
-  unread: number;
-  status: Status | null;
-};
 
-export type Message = {
-  id: number;
-  senderId: number;
-  content: string;
-  createdAt: Date;
-  status: "SENT" | "DELIVERED" | "SEEN";
-};
 
-export type FriendRequest = {
-  id: number;
-  name: string;
-  mutualFriends: number;
-};
 
 
 export type Me = {
@@ -47,7 +27,7 @@ export type Me = {
 };
 
 
-const ME: Me = { id: 1, displayName: "Lê xuân công", avatarUrl: null };
+const ME: Me = { id: 2, displayName: "Lê xuân công", avatarUrl: null };
 
 
 
@@ -59,10 +39,10 @@ const ME: Me = { id: 1, displayName: "Lê xuân công", avatarUrl: null };
 
 export default function HomePage() {
 
- const context = useSocket();
-if (!context) return; 
+  const context = useSocket();
+  if (!context) return;
 
-const { socket,pendingFriendCount, setPendingFriendCount } = context;
+  const { socket, pendingFriendCount, setPendingFriendCount } = context;
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [keyword, setKeyword] = useState("");
@@ -71,7 +51,6 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
-  const [activeId, setActiveId] = useState<number | null>(null);
 
 
 
@@ -79,7 +58,7 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
 
 
 
-  
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -87,7 +66,9 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
   const [friendRequests, setFriendRequests] = useState<FriendRequestResponse[]>([]);
   const [showFriendRequests, setShowFriendRequests] = useState(false);
 
-  const active = conversations.find((c) => c.id === activeId) ?? null;
+
+
+  const [activeConversation, setActiveConversation] = useState<Conversation>();
 
 
 
@@ -105,6 +86,79 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
       }))
       : conversations;
 
+
+
+
+
+
+  type Message = {
+    id: number;
+    content: string;
+    createdAt: string;
+    status: "SENT" | "DELIVERED" | "SEEN";
+    sender: {
+      id: number;
+      displayName: string;
+      avatar: string | null;
+    };
+    type?: "TEXT" | "IMAGE" | "FILE";
+    attachments?: { url: string; type: "IMAGE" | "FILE" }[];
+    isMine: boolean;
+  };
+
+
+  useEffect(() => {
+    console.log(1)
+    if (!socket) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const msgEvent: WsEvent<WSMessagePayload> = JSON.parse(event.data);
+
+        console.log(msgEvent)
+        if (msgEvent.type === WsEventType.NEW_MESSAGE) {
+          const msg: WSMessagePayload = msgEvent.data || {};
+
+          const newMsg: Message = {
+            id: msg.id ? Number(msg.id) : Date.now(),
+            content: msg.content ?? "",              
+            createdAt: msg.createdAt ?? new Date().toISOString(), 
+            status: msg.status ?? "SENT",
+            type: msg.type as "TEXT" | "IMAGE" | "FILE" | undefined,
+            sender: {
+              id: msg.sender?.id ? Number(msg.sender.id) : 0,
+              displayName: msg.sender?.displayName ?? "Người dùng",
+              avatar: msg.sender?.avatar ?? null,
+            },
+            attachments: [],
+            isMine: msg.sender?.id === ME.id,
+          };
+
+
+          setMessages((prev) => [...prev, newMsg]);
+        }
+      } catch (error) {
+        console.error("Lỗi parse WS message:", error);
+      }
+    };
+
+    socket.addEventListener("message", handleMessage);
+    return () => socket.removeEventListener("message", handleMessage);
+  }, [socket]);
+
+  useEffect(() => {
+    if (!activeConversation) {
+      return;
+    }
+    messageService.getMessagesByConversationId(activeConversation.id)
+      .then((res) => {
+        setMessages(res.data)
+      })
+      .catch((error) => {
+        console.log(error)
+      })
+
+  }, [activeConversation])
 
 
   const searchUser = useCallback(async () => {
@@ -134,20 +188,7 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
     searchUser();
   }, [searchUser]);
 
-  function sendMessage() {
-    if (!input.trim()) return;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        senderId: ME.id,
-        content: input.trim(),
-        createdAt: new Date(),
-        status: "SENT",
-      },
-    ]);
-    setInput("");
-  }
+
 
   function handleAccept(id: number) {
     setFriendRequests((prev) => prev.filter((r) => r.id !== id));
@@ -158,39 +199,69 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
   }
 
 
-  const handleAddFriend = (recipientId:number)=>{
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-         console.log("Socket chưa sẵn sàng");
-         return;
+  const handleAddFriend = (recipientId: number) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.log("Socket chưa sẵn sàng");
+      return;
+    }
+    const message: WsEvent<WSMessagePayload> = {
+      type: WsEventType.NEW_ADD_FRIEND,
+      data: {
+        type: "TEXT",
+        recipientId: recipientId
       }
-     const message: WsEvent<WSMessagePayload> ={
-      type:WsEventType.NEW_ADD_FRIEND,
-      data:{
-        type:"TEXT",
-        recipientId:recipientId
-      }
-     }
-  
-   socket.send(JSON.stringify(message));
-  
+    }
+
+    socket.send(JSON.stringify(message));
+
   }
 
 
-  const handleChooseUser = (userId:number) =>{
+  const handleChooseUser = (userId: number) => {
     conversationService.getOrCreateConversationByUserId(userId)
-    .then((res)=>{
-      const conversationId = res.data;
-      if(!conversationId) return;
-      setActiveId(res.data)
+      .then((res) => {
+        const conversationId = res.data;
+        if (!conversationId) return;
+        setActiveConversation(res.data)
 
-    })
-    .catch((error)=>{
-      console.log(error)
-    })
+      })
+      .catch((error) => {
+        console.log(error)
+      })
   }
 
 
-  
+
+
+
+  const sendMessage = async () => {
+    if (!input.trim() || !activeConversation || !socket || socket.readyState !== WebSocket.OPEN) return;
+    const newMsg: WSMessagePayload = {
+      type: "TEXT",
+      conversationId: activeConversation.id,
+      content: input,
+      sender: {
+        id: ME.id,
+        displayName: ME.displayName
+      }
+
+    }
+
+
+    const wsMsg: WsEvent<WSMessagePayload> = {
+      type: WsEventType.NEW_MESSAGE,
+      data: newMsg
+    };
+    try {
+      socket.send(JSON.stringify(wsMsg));
+      setInput("")
+    } catch (error) {
+
+    }
+
+  }
+
+
   return (
     <div className="h-screen bg-[#0f1117] flex overflow-hidden">
 
@@ -208,8 +279,8 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
                 <button
                   onClick={() => setShowFriendRequests((v) => !v)}
                   className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${showFriendRequests
-                      ? "bg-indigo-600/20 text-indigo-400"
-                      : "hover:bg-white/5 text-slate-400 hover:text-white"
+                    ? "bg-indigo-600/20 text-indigo-400"
+                    : "hover:bg-white/5 text-slate-400 hover:text-white"
                     }`}
                   title="Lời mời kết bạn"
                 >
@@ -325,8 +396,8 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
           ))}
         </div> */}
         <UserSearchItem onAddFriend={handleAddFriend}
-        users={searchResults}
-        onChooseUser={handleChooseUser}
+          users={searchResults}
+          onChooseUser={handleChooseUser}
         >
 
         </UserSearchItem>
@@ -351,7 +422,7 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
 
 
       <main className="flex-1 flex flex-col min-w-0">
-        {active ? (
+        {activeConversation ? (
           <>
             {/* Chat Header */}
             <div className="h-14 flex-shrink-0 flex items-center gap-3 px-4 border-b border-white/5 bg-[#13151f]/50 backdrop-blur-sm">
@@ -366,23 +437,23 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
                 </svg>
               </button>
               <Avatar
-                name={active.name}
-                id={active.id}
+                name={activeConversation.name}
+                id={activeConversation.id}
                 size="sm"
-                showStatus={!active.isGroup}
-                status={active.status}
+                showStatus={!activeConversation.isGroup}
+                status={activeConversation.status}
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">{active.name}</p>
+                <p className="text-sm font-semibold text-white">{activeConversation.name}</p>
                 <p
-                  className={`text-xs ${active.status === "ONLINE"
-                      ? "text-emerald-400"
-                      : "text-slate-500"
+                  className={`text-xs ${activeConversation.status === "ONLINE"
+                    ? "text-emerald-400"
+                    : "text-slate-500"
                     }`}
                 >
-                  {active.isGroup
+                  {activeConversation.isGroup
                     ? "Nhóm"
-                    : active.status === "ONLINE"
+                    : activeConversation.status === "ONLINE"
                       ? "Đang hoạt động"
                       : "Ngoại tuyến"}
                 </p>
@@ -412,7 +483,8 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
                 </p>
               )}
               {messages.map((msg) => {
-                const isMe = msg.senderId === ME.id;
+                const isMe = msg.sender.id === ME.id;
+                console.log(isMe)
                 return (
                   <div
                     key={msg.id}
@@ -420,13 +492,13 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
                       }`}
                   >
                     {!isMe && (
-                      <Avatar name={active.name} id={active.id} size="sm" />
+                      <Avatar name={activeConversation.name} id={activeConversation.id} size="sm" />
                     )}
                     <div className="max-w-[65%]">
                       <div
                         className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isMe
-                            ? "bg-indigo-600 text-white rounded-br-sm"
-                            : "bg-[#1e2130] text-slate-200 rounded-bl-sm border border-white/5"
+                          ? "bg-indigo-600 text-white rounded-br-sm"
+                          : "bg-[#1e2130] text-slate-200 rounded-bl-sm border border-white/5"
                           }`}
                       >
                         {msg.content}
@@ -436,7 +508,7 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
                           }`}
                       >
                         <span className="text-xs text-slate-600">
-                          {formatTime(msg.createdAt)}
+                          {formatTime(new Date(msg.createdAt))}
                         </span>
                         {isMe && (
                           <span className="text-xs text-slate-600">
@@ -454,7 +526,6 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
               })}
             </div>
 
-            {/* Input */}
             <div className="flex-shrink-0 px-4 py-4 border-t border-white/5">
               <div className="flex items-center gap-3 bg-[#1a1d27] border border-white/[0.08] rounded-2xl px-4 py-2.5">
                 <button className="text-slate-500 hover:text-indigo-400 transition-colors flex-shrink-0">
@@ -478,7 +549,6 @@ const { socket,pendingFriendCount, setPendingFriendCount } = context;
                   </svg>
                 </button>
                 <button
-                  onClick={sendMessage}
                   disabled={!input.trim()}
                   className="w-8 h-8 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl flex items-center justify-center transition-all flex-shrink-0"
                 >

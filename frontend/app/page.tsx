@@ -9,7 +9,9 @@ import { Message, WSMessagePayload } from "@/models/message/message";
 import { Status, UserSearchResult } from "@/models/users/user";
 import { useSocket } from "@/provider/socketProvider";
 import conversationService from "@/service/conversationService";
+import friendService from "@/service/friendService";
 import messageService from "@/service/messageService";
+import userService from "@/service/userService";
 import { formatTime } from "@/utils/time/time";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -20,14 +22,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 
 
-export type Me = {
+export type ProfileInfo = {
   id: number;
   displayName: string;
   avatarUrl: string | null;
 };
 
 
-const ME: Me = { id: 2, displayName: "Lê xuân công", avatarUrl: null };
 
 
 
@@ -52,6 +53,12 @@ export default function HomePage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
 
+
+  const [profile,setProfile]  = useState<ProfileInfo>({
+    avatarUrl:"",
+    displayName:"unknow",
+    id:0
+  });
 
 
 
@@ -107,8 +114,28 @@ export default function HomePage() {
   };
 
 
+
   useEffect(() => {
-    console.log(1)
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/users/profile", {
+        credentials: "include", 
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.data) {
+        setProfile(data.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  fetchProfile();
+}, []);
+
+  useEffect(() => {
     if (!socket) return;
 
     const handleMessage = (event: MessageEvent) => {
@@ -131,7 +158,7 @@ export default function HomePage() {
               avatar: msg.sender?.avatar ?? null,
             },
             attachments: [],
-            isMine: msg.sender?.id === ME.id,
+            isMine: msg.sender?.id === profile.id,
           };
 
 
@@ -241,8 +268,8 @@ export default function HomePage() {
       conversationId: activeConversation.id,
       content: input,
       sender: {
-        id: ME.id,
-        displayName: ME.displayName
+        id: profile.id,
+        displayName: profile.displayName
       }
 
     }
@@ -403,10 +430,10 @@ export default function HomePage() {
         </UserSearchItem>
 
         <div className="px-4 py-3 border-t border-white/5 flex items-center gap-3 flex-shrink-0">
-          <Avatar name={ME.displayName} id={ME.id} size="sm" />
+          <Avatar name={profile.displayName} id={profile.id} size="sm" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">
-              {ME.displayName}
+              {profile.displayName}
             </p>
             <p className="text-xs text-emerald-400">Đang hoạt động</p>
           </div>
@@ -483,7 +510,7 @@ export default function HomePage() {
                 </p>
               )}
               {messages.map((msg) => {
-                const isMe = msg.sender.id === ME.id;
+                const isMe = msg.sender.id === profile.id;
                 console.log(isMe)
                 return (
                   <div

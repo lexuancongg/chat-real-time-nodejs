@@ -17,4 +17,16 @@ userRouter.get(
 );
 
 
+userRouter.get(
+  "/profile",
+  (
+    req: Request,
+    res: Response<ApiResponse<any>>,
+    next: NextFunction
+  )=>{
+    userController.getProfile(req,res,next);
+  }
+)
+
+
 export default userRouter;

@@ -3,17 +3,17 @@ type MessageType = "TEXT" | "IMAGE" | "FILE" | "VIDEO";
 type MessageStatus = "SENT" | "DELIVERED" | "SEEN";
 
 type Sender = {
-  id: string;
+  id: number;
   displayName: string;
   avatar?: string;
 };
 
 export type WSMessagePayload = {
-  id?: string;
+  id?: number;
   type?: "TEXT" | "IMAGE" | "FILE" | "VIDEO" | "FRIEND_REQUEST"; 
-  conversationId?: string;    
+  conversationId?: number;    
   sender?: Sender;
-  recipientId?: string;       
+  recipientId?: number;       
   content?: string;           
   status?: MessageStatus;     
   createdAt: string;

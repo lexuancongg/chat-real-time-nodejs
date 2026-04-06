@@ -5,7 +5,7 @@ import signature from "cookie-signature";
 import { sessionStore } from '../../middlewares/session';
 import prisma from '../../../prisma/client';
 import { WsEvent, WsEventType, WsResponse } from '../../models/event/event';
-import { WSMessagePayload } from '../../models/ws/wsPayload';
+import { NewRequestFriendResponsePayload, WSMessagePayload } from '../../models/ws/wsPayload';
 
 const configWebsocket = (server: http.Server) => {
   const clients = new Map<number, WebSocket>();
@@ -53,6 +53,21 @@ const configWebsocket = (server: http.Server) => {
             const userIds = rooms.get(conversationId);
             if (!userIds) return;
 
+            if (!data.sender || !data.content) return;
+            const savedMessage = await prisma.message.create({
+              data: {
+                conversationId: conversationId,
+                senderId: data.sender.id,
+                content: data.content,
+              },
+            });
+
+            await prisma.conversation.update({
+              where: { id: conversationId },
+              data: {
+                lastMessageId: savedMessage.id,
+              },
+            });
             userIds.forEach((uid) => {
               const client = clients.get(uid);
               if (client?.readyState === WebSocket.OPEN) {
@@ -92,7 +107,7 @@ const configWebsocket = (server: http.Server) => {
                   message: "yêu cầu kết bạn",
                   sender: {
                     displayName: sender.displayName!,
-                    id: sender.id.toString()
+                    id: sender.id
                   }
                 }
               }
@@ -106,11 +121,11 @@ const configWebsocket = (server: http.Server) => {
       }
     });
 
-    ws.on('error', () => {});
-    ws.on('close', () => {});
+    ws.on('error', () => { });
+    ws.on('close', () => { });
   });
 
-  wss.on('error', () => {});
+  wss.on('error', () => { });
 };
 
 export default configWebsocket;
